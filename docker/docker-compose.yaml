@@ -1,0 +1,35 @@
+services:
+
+  dev-container:
+    image: mcr.microsoft.com/devcontainers/base:bullseye
+    volumes:
+      - ..:/workspaces:cached
+      - shared-data:/mnt/shared
+    command: sleep infinity
+    networks:
+      - fluxnet
+    
+  git-server:
+    image: git-server:latest
+    container_name: k8s-dev-git-server
+    hostname: git-server
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.5'
+          memory: 200M
+    build:
+      context: ./git-server
+      dockerfile: Dockerfile
+    ports:
+      - '2222:22'
+    volumes:
+      - shared-data:/mnt/shared
+    networks:
+      - fluxnet
+
+volumes:
+  shared-data:
+
+networks:
+  fluxnet:
