@@ -18,7 +18,7 @@ RUN git config --global user.email "you@example.com"
 #Init repositories with an initial commit
 RUN mkdir -p "/srv/git/org/flux-gitops"
 WORKDIR  "/srv/git/org/flux-gitops"
-RUN git init
+RUN git init -b main
 RUN touch .gitignore
 RUN git add .
 RUN git commit -m "First commit"

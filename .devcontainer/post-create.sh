@@ -19,6 +19,8 @@ mkdir -p /home/vscode/dev
 cd /home/vscode/dev
 git clone ssh://git-server//srv/git/org/flux-gitops
 
+cp -r /workspaces/* /home/vscode/dev/flux-gitops
+
 # Start Minikube, with docker driver and cilium CNI
 minikube start --driver=docker --cni=cilium
 
@@ -45,9 +47,29 @@ fi
 flux create secret git flux-system --url=ssh://git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id
 
 # Flux bootstrap
-flux bootstrap git --url=ssh://git@git-server/srv/git/org/flux-gitops --path=clusters/minikube --branch=main --ssh-hostname=git-server:22
+# Note to self: 
+# git server creates default master branch and not main. fixed in git-server Dockerfile
+flux bootstrap git --url=ssh://git@git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id --path=clusters/minikube --branch=main --ssh-hostname=git-server:22 --insecure-skip-tls-verify
+# DNS issue
+# unable to clone 'ssh://git@git-server:22/srv/git/org/flux-gitops': 
+# dial tcp: lookup git-server on 10.96.0.10:53: no such host'', 
+sudo apt-get update
+sudo apt-get install dnsutils -y
 
-flux bootstrap git --url=ssh://git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id --ssh-hostname=git-server:22 --path=clusters/minikube --branch=main
+# add the following line to the configMap
+nslookup git-server
+
+# edit coreDNS confiMap for minikube
+# TODO: hadd git-server host and ip to configMap coredns
+# hosts {                                                                                                                                                                                                                          │
+#        172.21.0.2 git-server  
+kubectl edit configmap coredns -n kube-system
+
+# restart coreDNS pod to reload the configMap
+kubectl delete pod -n kube-system -l k8s-app=kube-dns
+
+# Note to self: 
+# git server creates default master branch and not main.. bootstrap with main branch...
 
 # TODO: 
 # - create a new private ssh key
