@@ -35,8 +35,8 @@ Press F1 and select Remote-Containers: Reopen in Container.
 
 ### Flux boostrap issues
 
-for now it's not possible to bootstap flux with `git-server`. Need to solve this error:
+Sloved the main part of this. Need to find a way to update coreDNS ConfigMap (using jq and kubectl I guess).
 
-```
-clone failure: unable to clone 'ssh://git-server/srv/git/org/flux-gitops': ssh: handshake failed: ssh: unable to authenticate, attempted methods [none publickey], no supported methods remain
-```
+### Work in progress
+
+Currently the `post-crate.sh` script is not run in the devContainer `postCreateCommand`. I needs more work.
