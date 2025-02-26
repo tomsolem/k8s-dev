@@ -12,9 +12,11 @@ echo "  User git" >> ~/.ssh/config
 echo "  IdentityFile ~/.ssh/git-server_id" >> ~/.ssh/config
 # echo "  StrickHostKeyChecking no" >> ~/.ssh/config
 
-# remove server from known_hosts if it exists
+# remove server from known_hosts if it exists, this might happen if the server was recreated
 ssh-keygen -f "/home/vscode/.ssh/known_hosts" -R "git-server"
 
+# Clone the Flux GitOps repository
+echo "Cloning the Flux GitOps repository..."
 mkdir -p /home/vscode/dev
 cd /home/vscode/dev
 git clone ssh://git-server//srv/git/org/flux-gitops
@@ -33,7 +35,7 @@ done
 
 echo "Minikube is running!"
 
-
+# Install Flux
 # Only check for the pre-requisites
 echo "Checking Flux pre-requisites..."
 if flux check --pre; then
@@ -43,39 +45,33 @@ else
   echo "Flux pre-requisites check failed. Exiting..."
   exit 1
 fi
-
-flux create secret git flux-system --url=ssh://git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id
-
-# Flux bootstrap
-# Note to self: 
-# git server creates default master branch and not main. fixed in git-server Dockerfile
-flux bootstrap git --url=ssh://git@git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id --path=clusters/minikube --branch=main --ssh-hostname=git-server:22 --insecure-skip-tls-verify
-# DNS issue
-# unable to clone 'ssh://git@git-server:22/srv/git/org/flux-gitops': 
-# dial tcp: lookup git-server on 10.96.0.10:53: no such host'', 
+## Add custom dns to coredns
+# to resolve the git-server hostname
 sudo apt-get update
 sudo apt-get install dnsutils -y
 
-# add the following line to the configMap
-nslookup git-server
+# Get the IP address of the git-server
+GIT_SERVER_IP=$(nslookup git-server | grep 'Address' | tail -n 1 | awk '{print $2}')
+echo "Git server IP address: $GIT_SERVER_IP"
 
-# edit coreDNS confiMap for minikube
-# TODO: hadd git-server host and ip to configMap coredns
-# hosts {                                                                                                                                                                                                                          │
-#        172.21.0.2 git-server  
-kubectl edit configmap coredns -n kube-system
-
+# Add the git-server IP to the coredns-custom.yaml file
+echo "Adding the git-server IP to the coredns-custom.yaml file..."
+sed -i "s/{{GIT_SERVER_IP}}/$GIT_SERVER_IP/g" /workspaces/infrastructure/minikube/kube-system/coredns-custom.yaml
+# apply the file to kubernetes
+kubectl apply -f /workspaces/infrastructure/minikube/kube-system/coredns-custom.yaml
 # restart coreDNS pod to reload the configMap
-kubectl delete pod -n kube-system -l k8s-app=kube-dns
+kubectl -n kube-system rollout restart deployment coredns
 
-# Note to self: 
-# git server creates default master branch and not main.. bootstrap with main branch...
+## Bootstrap Flux
+# Create a secret for the git repository
+flux create secret git flux-system --url=ssh://git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id
+
+# Flux bootstrap
+flux bootstrap git --url=ssh://git@git-server/srv/git/org/flux-gitops --private-key-file=/home/vscode/.ssh/git-server_id --path=clusters/minikube --branch=main --ssh-hostname=git-server:22 --insecure-skip-tls-verify
 
 # TODO: 
-# - create a new private ssh key
-# - add key to git server authorized_keys
-# - clone the flux-gitops repo into the workspace (not the same folder as current worksspace)
-# - set public key to be used by flux
+# - add istio and kiali to the cluster
+# - find out if helm cli has the repo added when flux installs it in cluster
 
 # Add official Helm repositories for Istio and Kiali
 echo "Adding official Helm repositories for Istio and Kiali..."
@@ -85,22 +81,3 @@ helm repo add cilium https://helm.cilium.io/
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add prometheus https://prometheus-community.github.io/helm-charts
 helm repo update
-
-# Missing CRD for Cilium. Need to install them prior to deploying Cilium
-# install cilium helm repo
-kubectl apply -f /workspaces/infrastructure/localhost/cilium/Helm-repository.yaml
-# install cilium helm chart
-kubectl apply -f /workspaces/infrastructure/localhost/cilium/Helm-release-cilium.yaml
-
-# scale cilium-operator to 1 (not sure why the replicas are not set to 1)
-#kubectl scale deployment cilium-operator --replicas=1 -n kube-system
-
-# Deploy all the namespace for the environment (not sure why ecom is not in base)
-#kubectl apply -k /workspaces/infrastructure/localhost/namespace
-# Deploy application as needed for the environment
-#ENVIRONMENT=dev
-# Add custom crd / helmRleease for the environment
-#kubectl apply -k /workspaces/infrastructure/$ENVIRONMENT/crds
-# istio
-#kubectl apply -k /workspaces/infrastructure/base/istio
-#kubectl apply -k /workspaces/infrastructure/$ENVIRONMENT/istio

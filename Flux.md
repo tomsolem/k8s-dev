@@ -11,8 +11,9 @@ touch clusters/my-cluster/flux-system/gotk-components.yaml \
     clusters/my-cluster/flux-system/kustomization.yaml
 ```
 
-Idea:
+## setup
 
-Flux bootstrap with git repo. But need to commit to repo for updates
-
-setup git server and mount this repo into the git server 
+A git-server with a gitops repo.
+Clone the repo to a /tmp/dev/ folder in dev container
+copy content of this repo to /tmp/dev (or add a new remote).
+Push changes and flux sync them into kubernetes.
