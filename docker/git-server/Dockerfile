@@ -15,6 +15,7 @@ USER git
 
 #Set fake user details for initial git commit
 RUN git config --global user.email "you@example.com"
+RUN git config --global user.name "Your Name"
 #Init repositories with an initial commit
 RUN mkdir -p "/srv/git/org/flux-gitops"
 WORKDIR  "/srv/git/org/flux-gitops"

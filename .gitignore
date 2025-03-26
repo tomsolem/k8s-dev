@@ -35,3 +35,6 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+# we don't want to check in the kubeconfig file changes
+infrastructure/minikube/kube-system/coredns-config-map.yaml
+infrastructure/minikube/kube-system/coredns-custom.yaml

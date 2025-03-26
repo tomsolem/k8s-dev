@@ -10,19 +10,27 @@ echo "Host git-server" >> ~/.ssh/config
 echo "  HostName git-server" >> ~/.ssh/config
 echo "  User git" >> ~/.ssh/config
 echo "  IdentityFile ~/.ssh/git-server_id" >> ~/.ssh/config
-# echo "  StrickHostKeyChecking no" >> ~/.ssh/config
 
 # remove server from known_hosts if it exists, this might happen if the server was recreated
 ssh-keygen -f "/home/vscode/.ssh/known_hosts" -R "git-server"
 
 # Clone the Flux GitOps repository
 echo "Cloning the Flux GitOps repository..."
+CURRENT_DIR=$(pwd)
 mkdir -p /home/vscode/dev
 cd /home/vscode/dev
 git clone ssh://git-server//srv/git/org/flux-gitops
 
+# Copy the content of the workspace to the Flux GitOps repository
+echo "Copying the content of the workspace to the Flux GitOps repository..."
 cp -r /workspaces/* /home/vscode/dev/flux-gitops
-
+cd /home/vscode/dev/flux-gitops
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
+git add .
+git commit -m "Add code"
+git push
+cd $CURRENT_DIR
 # Start Minikube, with docker driver and cilium CNI
 minikube start --driver=docker --cni=cilium
 
@@ -34,7 +42,6 @@ while ! minikube status | grep -q "host: Running"; do
 done
 
 echo "Minikube is running!"
-
 # Install Flux
 # Only check for the pre-requisites
 echo "Checking Flux pre-requisites..."
@@ -56,9 +63,17 @@ echo "Git server IP address: $GIT_SERVER_IP"
 
 # Add the git-server IP to the coredns-custom.yaml file
 echo "Adding the git-server IP to the coredns-custom.yaml file..."
-sed -i "s/{{GIT_SERVER_IP}}/$GIT_SERVER_IP/g" /workspaces/infrastructure/minikube/kube-system/coredns-custom.yaml
-# apply the file to kubernetes
-kubectl apply -f /workspaces/infrastructure/minikube/kube-system/coredns-custom.yaml
+# Add git-server IP to /etc/resolv.conf
+
+# Download the cored dns config map
+kubectl get configmap coredns -n kube-system -o yaml > /workspaces/infrastructure/minikube/kube-system/coredns-config-map.yaml
+# Add git-server IP to coredns config map
+echo "Adding the git-server IP and name to the CoreDNS ConfigMap..."
+sed -i "/hosts {/a\           $GIT_SERVER_IP git-server" /workspaces/infrastructure/minikube/kube-system/coredns-config-map.yaml
+
+# Apply the updated ConfigMap to Kubernetes
+kubectl apply -f /workspaces/infrastructure/minikube/kube-system/coredns-config-map.yaml
+
 # restart coreDNS pod to reload the configMap
 kubectl -n kube-system rollout restart deployment coredns
 
